@@ -11,4 +11,4 @@ Utilizo la **Pyramid of Pain** para clasificar los indicadores de compromiso (Io
 | **Base** | IPs / Dominios / Hashes | Trivial / Fácil | Bloqueo automático mediante Feeds de Inteligencia. |
 
 > **Objetivo:** Elevar la defensa hacia los TTPs para forzar al atacante a reinventar su estrategia completa.
-> ![abrir imagen](pyramid_pain.png)
+> ![abrir imagen](recursos/pyramid_pain.png)
