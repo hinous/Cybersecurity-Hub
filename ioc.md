@@ -1,6 +1,6 @@
 # IOC & IOA#
 
-## 🔺 Estrategia de Detección: La Pirámide del Dolor
+##Estrategia de Detección: La Pirámide del Dolor
 
 Utilizo la **Pyramid of Pain** para clasificar los indicadores de compromiso (IoCs) y maximizar el impacto de la defensa:
 
@@ -11,3 +11,4 @@ Utilizo la **Pyramid of Pain** para clasificar los indicadores de compromiso (Io
 | **Base** | IPs / Dominios / Hashes | Trivial / Fácil | Bloqueo automático mediante Feeds de Inteligencia. |
 
 > **Objetivo:** Elevar la defensa hacia los TTPs para forzar al atacante a reinventar su estrategia completa.
+> [abrir imagen](pyramid_pain.png)
