@@ -1,4 +1,4 @@
-# IOC & IOA#
+# IOC & IOA
 
 ##Estrategia de Detección: La Pirámide del Dolor
 
