@@ -1,2 +1,2 @@
 # TCP vs. Wireshark #
-[click para ver una imagen diagrama de venn](tcp_vs_wireshark.png)
+![comparativa entre los 2 recursos](recursos/tcp_vs_wireshark.png)
