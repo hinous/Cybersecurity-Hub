@@ -1,0 +1,104 @@
+# Write-Up: TryHackMe  Breaching Active Directory
+
+**Dificultad:** Medium
+**Objetivo:** Obtener acceso inicial a un entorno de Active Directory (AD) mediante la captura y extracción de credenciales a través de diversos vectores de ataque.
+
+## Introducción
+En este laboratorio, asumimos el rol de un atacante que ya tiene presencia en la red interna (por ejemplo, mediante un dispositivo rogue). El objetivo no es la escalada de privilegios inmediata, sino obtener nuestro **primer conjunto de credenciales válidas** para poder enumerar el dominio y, posteriormente, comprometerlo por completo.
+
+*   **Red:** `za.tryhackme.com`
+*   **Domain Controller (THMDC):** `10.200.70.101`
+*   **Servidor Web/Impresora (THM-IIS):** `10.200.70.201`
+*   **Servidor MDT:** `10.200.70.202`
+*   **Servidor de pruebas (THMJMP1):** `10.200.70.248`
+
+---
+
+## 1. Configuración del Entorno y DNS
+Como es común en los laboratorios de Active Directory, el DNS es fundamental para que Kerberos y otros servicios funcionen. Al utilizar la AttackBox, la conexión VPN es automática, pero el DNS debe configurarse manualmente.
+
+Añadimos el Domain Controller a nuestro archivo de resolución:
+```bash
+echo "nameserver 10.200.70.101" | sudo tee /etc/resolv-dnsmasq
+sudo systemctl restart dnsmasq
+```
+*(Nota: Debido a problemas con el DNS local en la AttackBox, se recomienda forzar la resolución de hosts específicos directamente en el archivo `/etc/hosts`).*
+
+---
+
+## 2. Ataque NTLM Password Spraying
+Descubrimos un portal web en `http://ntlmauth.za.tryhackme.com` que utiliza autenticación Windows (NTLM). Aprovechando una lista de usuarios obtenida por OSINT y la contraseña por defecto de la organización (`Changeme123`), realizamos un **Password Spraying** (probar una sola contraseña contra muchos usuarios para evitar bloqueos).
+
+Utilizamos un script personalizado en Python:
+```bash
+python3 ntlm_passwordspray.py -u usernames.txt -f za.tryhackme.com -p 'Changeme123' -a http://ntlmauth.za.tryhackme.com
+```
+*   **Resultado:** Encontramos credenciales válidas para la cuenta de servicio `svcFileCopy` con la contraseña `FPassword1!`.
+
+---
+
+## 3. LDAP Pass-back Attack
+El siguiente objetivo fue la impresora de red (`http://printer.za.tryhackme.com`). Al inspeccionar su panel de configuración, vimos que utilizaba LDAP para autenticarse contra el dominio y tenía las credenciales en texto claro (vulnerabilidad `minssf=0`).
+
+### Explotación:
+1.  Modificamos la IP del servidor LDAP en la web de la impresora para que apuntara a nuestra IP de la VPN (`10.150.70.15`).
+2.  Levantamos un *listener* con Netcat en el puerto 389 (LDAP) para interceptar la conexión:
+    ```bash
+    sudo nc -lvnp 389
+    ```
+3.  Al hacer clic en "Test Settings", la impresora envió sus credenciales. Buscando en el tráfico capturado, extrajimos el usuario `svcLDAP` y la contraseña `tryhackmeldappass1@`.
+
+---
+
+## 4. Ataque Responder (LLMNR/NBT-NS Poisoning)
+Al no tener éxito con la autenticación relay por SMB, procedimos a envenenar la red para capturar hashes NetNTLMv2. Utilizamos la herramienta **Responder** escuchando en la interfaz de red del laboratorio:
+```bash
+sudo responder -I breachad
+```
+Tras esperar a que el servidor simulado intentara autenticarse, Responder capturó el hash NTLMv2 de la cuenta `svcFileCopy`. 
+
+### Crackeo Offline:
+Guardamos el hash en un archivo (`hash.txt`) y utilizamos **Hashcat** con el modo 5600 para NetNTLMv2:
+```bash
+hashcat -m 5600 hash.txt passwordlist.txt --force
+```
+*   **Resultado:** La contraseña de `svcFileCopy` se reveló como `FPassword1!`. (Nota: Aunque esta cuenta ya la teníamos, este paso demuestra la viabilidad del ataque de envenenamiento de red).
+
+---
+
+## 5. Ataque a Microsoft Deployment Toolkit (MDT) - PXE Boot
+Nos conectamos por SSH al servidor `THMJMP1` (`ssh thm@THMJMP1.za.tryhackme.com`). Descubrimos que la empresa utiliza MDT para desplegar imágenes de Windows. 
+
+### Extracción de Credenciales de PXE:
+1.  Identificamos el servidor MDT y su IP (`10.200.70.202`).
+2.  Descargamos el archivo de arranque BCD a través de TFTP:
+    ```cmd
+    tftp -i 10.200.70.202 GET "\Tmp\x64{5BCA65FE...}.bcd" conf.bcd
+    ```
+3.  Utilizamos la herramienta `PowerPXE.ps1` para analizar el BCD y encontrar la imagen WIM (`LiteTouchPE_x64.wim`).
+4.  Descargamos la imagen WIM (340 MB) por TFTP.
+5.  Ejecutamos el script de PowerPXE para buscar el archivo `Bootstrap.ini` dentro de la imagen, el cual contenía las credenciales en texto plano:
+    *   **Usuario:** `svcMDT`
+    *   **Contraseña:** `MDTPassword123!`
+
+---
+
+## 6. Extracción de Credenciales en Archivos de Configuración (McAfee)
+Continuando en el servidor `THMJMP1`, buscamos software de seguridad de terceros. Encontramos una base de datos de McAfee en `C:\ProgramData\McAfee\Agent\DB\ma.db`.
+
+1.  Exfiltramos la base de datos a nuestra AttackBox mediante SCP:
+    ```bash
+    scp thm@THMJMP1.za.tryhackme.com:C:/ProgramData/McAfee/Agent/DB/ma.db .
+    ```
+2.  Abrimos la base de datos con `sqlitebrowser` y consultamos la tabla `AGENT_REPOSITORIES`. Encontramos el campo `AUTH_PASSWD` encriptado.
+3.  Utilizamos el script de Python proporcionado en la room para desencriptar la contraseña, obteniendo las credenciales finales de la cuenta de servicio de McAfee.
+
+---
+
+## Conclusión
+Esta room demuestra que el perímetro de una red no es solo la web pública. Los atacantes con acceso a la red interna pueden aprovechar configuraciones débiles en servicios heredados (LLMNR, NTLM), sistemas de despliegue (PXE/MDT) y software de terceros (McAfee) para robar credenciales de AD sin necesidad de exploits de día cero. 
+
+**Lecciones clave:**
+*   Nunca guardar contraseñas en texto plano en archivos de configuración o imágenes de instalación.
+*   Deshabilitar protocolos de resolución de nombres heredados (LLMNR/NBT-NS) si no se usan.
+*   Utilizar cuentas de servicio con contraseñas robustas y el principio de menor privilegio.
