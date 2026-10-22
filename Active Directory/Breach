@@ -84,6 +84,38 @@ Tras ejecutar el script, obtuvimos respuestas exitosas para varias cuentas. La m
 Usuario: svcFileCopy
 Contraseña: FPassword1!
 
+Task 4: LDAP Pass-back Attack
+
+Las aplicaciones que usan LDAP (como impresoras o sistemas de terceros) verifican las credenciales directamente contra el Domain Controller. El ataque LDAP Pass-back aprovecha los paneles de administración de estos dispositivos. Si logro cambiar la IP del servidor LDAP por la mía, cuando el dispositivo pruebe la conexión, me enviará sus credenciales.
+
+Preparando el servidor LDAP "Rogue":
+Para que la impresora me envíe la contraseña en texto claro, tuve que montar un servidor LDAP local que solo soporte mecanismos débiles (PLAIN y LOGIN).
+
+Reconfiguré el servicio slapd en mi AttackBox:
+
+bash
+sudo dpkg-reconfigure -p low slapd
+Creé un archivo llamado olcSaslSecProps.ldif para forzar la baja seguridad, deshabilitando el login anónimo y exigiendo que la fuerza mínima de seguridad sea 0 (sin cifrado):
+
+ldif
+dn: cn=config
+changetype: modify
+replace: olcSaslSecProps
+olcSaslSecProps: noanonymous,minssf=0,passcred
+Apliqué la configuración al servidor:
+
+bash
+sudo ldapmodify -Y EXTERNAL -H ldapi:// -f ./olcSaslSecProps.ldif
+sudo systemctl restart slapd
+Capturando las Credenciales:
+
+Accedí al panel de la impresora (http://printer.za.tryhackme.com) y cambié la IP del servidor LDAP por mi IP en la interfaz breachad.
+Puse a escuchar el tráfico de red en el puerto 389 usando tcpdump:
+
+bash
+sudo tcpdump -SX -i breachad tcp port 389
+Al darle a "Test Settings" en la web de la impresora, intercepté el paquete. En el volcado hexadecimal, logré ver en texto claro el usuario svcLDAP y su contraseña asociada.
+
 Task 5: Authentication Relays (Responder)
 
 El protocolo SMB es fundamental en redes Windows para compartir archivos. Para agilizar la resolución de nombres, Windows utiliza protocolos de difusión local como LLMNR, NBT-NS y WPAD. Aproveché esto para realizar un ataque de envenenamiento (Poisoning).
