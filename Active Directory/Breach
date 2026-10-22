@@ -3,6 +3,11 @@ Write-Up Completo: TryHackMe - Breaching Active Directory (Parte 1: OSINT y NTLM
 Dificultad: Medium
 Objetivo General: Obtener el primer conjunto de credenciales válidas de Active Directory (AD) a través de diferentes vectores de ataque para luego poder enumerar el dominio.
 
+Active Directory (AD) es el corazón de la gran mayoría de las redes corporativas Windows, lo que lo convierte en el objetivo principal de cualquier Red Team. En este Write-Up, 
+documento mi recorrido por la room Breaching Active Directory de TryHackMe. El objetivo principal no es la escalada de privilegios, sino el paso más crítico del ataque: obtener 
+el primer conjunto de credenciales válidas (foothold). A lo largo de este laboratorio, exploraremos cómo abusar de configuraciones débiles en NTLM, LDAP, sistemas de despliegue 
+(MDT) y archivos de configuración para comprometer cuentas de servicio. 
+
 Task 1 y 2: Introducción, OSINT y Phishing
 
 Antes de lanzar un exploit, el reconocimiento es clave. Active Directory es el "corazón" de las redes Windows, y obtener las credenciales iniciales puede lograrse mediante:
