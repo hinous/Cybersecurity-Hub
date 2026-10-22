@@ -83,3 +83,94 @@ Tras ejecutar el script, obtuvimos respuestas exitosas para varias cuentas. La m
 
 Usuario: svcFileCopy
 Contraseña: FPassword1!
+
+Task 5: Authentication Relays (Responder)
+
+El protocolo SMB es fundamental en redes Windows para compartir archivos. Para agilizar la resolución de nombres, Windows utiliza protocolos de difusión local como LLMNR, NBT-NS y WPAD. Aproveché esto para realizar un ataque de envenenamiento (Poisoning).
+
+Al ejecutar Responder en la interfaz breachad, la herramienta se quedó escuchando las peticiones de la red. Cuando un usuario o servicio intentó conectarse a un host, Responder interceptó la petición, se hizo pasar por el servidor real y capturó el hash NetNTLMv2 de la víctima.
+
+Nota del auditor: En este entorno de laboratorio, el tráfico se simula cada 30 minutos, por lo que tuve que dejar Responder corriendo un buen rato.
+
+bash
+sudo responder -I breachad
+Una vez capturado el hash, lo guardé en un archivo y procedí a crackearlo offline usando Hashcat con el modo 5600 (NetNTLMv2):
+
+bash
+hashcat -m 5600 hash.txt passwordlist.txt --force
+Resultado: Logré descifrar la contraseña en texto plano para la cuenta de servicio svcFileCopy.
+
+Task 6: Microsoft Deployment Toolkit (MDT)
+
+MDT junto con PXE Boot es la solución que usan las empresas para desplegar Windows por red. Para esto, descargan una imagen de arranque por TFTP y usan un archivo Bootstrap.ini que contiene credenciales de AD.
+
+Proceso de explotación:
+
+Me conecté por SSH al servidor de pruebas: ssh thm@THMJMP1.za.tryhackme.com.
+Consulté la web pxeboot.za.tryhackme.com para obtener el nombre del archivo de arranque BCD (x64{...}.bcd).
+Descargué el BCD desde el servidor MDT usando TFTP:
+
+cmd
+tftp -i 10.200.70.202 GET "\Tmp\x64{...}.bcd" conf.bcd
+Usé PowerShell y el script PowerPXE.ps1 para leer el BCD y encontrar la ruta de la imagen de Windows (.wim).
+Descargué la imagen WIM (de casi 340 MB) vía TFTP a mi máquina:
+
+cmd
+tftp -i 10.200.70.202 GET "\Boot\x64\Images\LiteTouchPE_x64.wim" pxeboot.wim
+Finalmente, extraje el Bootstrap.ini de la imagen para leer las credenciales:
+
+powershell
+Get-FindCredentials -WimFile pxeboot.wim
+Resultado: Obtuve el usuario svcMDT y su contraseña en texto claro.
+
+Task 7: Configuration Files (McAfee)
+
+Tras obtener acceso al host (THMJMP1), busqué credenciales en archivos de configuración de software de terceros. El antivirus McAfee guarda sus credenciales de conexión con el orquestador en una base de datos local.
+
+Proceso de explotación:
+
+Accedí a la ruta de la base de datos en el servidor Windows:
+
+cmd
+cd C:\ProgramData\McAfee\Agent\DB
+Extraje el archivo ma.db a mi AttackBox usando SCP:
+
+bash
+scp thm@THMJMP1.za.tryhackme.com:C:/ProgramData/McAfee/Agent/DB/ma.db .
+Abrí el archivo con sqlitebrowser y revisé la tabla AGENT_REPOSITORIES. Encontré el usuario svcAV y su contraseña ofuscada en el campo AUTH_PASSWD.
+Análisis del script de desencriptación:
+McAfee usa una clave estática para proteger esta contraseña. Analizando el script mcafee_sitelist_pwd_decrypt.py, noté que el proceso de descifrado hace dos cosas:
+
+python
+# 1. Clave XOR estática
+KEY = "12150F10111C1A060A1F1B1817160519".decode("hex")
+
+def sitelist_xor(xs):
+    # Aplica XOR a los datos
+    return ''.join(chr(ord(c) ^ ord(KEY[i%16]))for i, c in enumerate(xs))
+
+def des3_ecb_decrypt(data):
+    # 2. Clave 3DES derivada del hash SHA de una cadena estática
+    key = SHA.new(b'<!@#$%^>').digest() + "\x00\x00\x00\x00"
+    des3 = DES3.new(key, DES3.MODE_ECB, "")
+    decrypted = des3.decrypt(data)
+    return decrypted[0:decrypted.find('\x00')] or "<empty>"
+El script decodifica el Base64, aplica una operación XOR con la clave estática y finalmente descifra el resultado usando 3DES (modo ECB).
+
+Ejecución:
+
+bash
+python2 mcafee_sitelist_pwd_decrypt.py <AUTH_PASSWD_VALUE>
+Resultado: El script me devolvió la contraseña de la cuenta svcAV en texto plano.
+
+Task 8: Conclusiones y Mitigaciones
+
+A lo largo de este laboratorio, logré comprometer el dominio obteniendo múltiples cuentas de servicio (svcFileCopy, svcLDAP, svcMDT, svcAV) sin necesidad de usar exploits de día cero. Todo se basó en abusar de configuraciones débiles, protocolos heredados y falta de protección en los sistemas de despliegue.
+
+Medidas de mitigación recomendadas:
+
+Concienciación del usuario: El eslabón más débil es el humano; hay que evitar el phishing y la filtración de datos.
+Limitar la exposición: No exponer servicios como NTLM o LDAP directamente a Internet; usar VPNs con MFA.
+NAC (Network Access Control): Prevenir la conexión de dispositivos no autorizados (rogue devices) en la red interna.
+Forzar SMB Signing: Esto mitiga de raíz los ataques de retransmisión (Relay) y envenenamiento.
+Principio de menor privilegio: Las cuentas de servicio (impresoras, MDT, antivirus) deben tener permisos estrictamente limitados para minimizar el impacto si son comprometidas.
