@@ -18,7 +18,7 @@ attack appeared on the platform.
 
 
 ## Para contestar la primera pregunta usamos la línea: 
-!(https://github.com/hinous/Cybersecurity-Hub/blob/main/Assets/numero%20de%20eventos.png)
+![fig1](https://github.com/hinous/Cybersecurity-Hub/blob/main/Assets/numero%20de%20eventos.png)
 
     index="linux-alert" src_ip="10.10.242.248" source="auth.log" Failed 
 
