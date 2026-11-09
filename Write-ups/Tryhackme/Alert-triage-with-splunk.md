@@ -18,8 +18,8 @@ attack appeared on the platform.
 
 
 ## Para contestar la primera pregunta usamos la línea: 
-<img src= https://github.com/hinous/Cybersecurity-Hub/blob/main/Assets/numero%20de%20eventos.png width="150">
-     
+!(https://github.com/hinous/Cybersecurity-Hub/blob/main/Assets/numero%20de%20eventos.png)
+
     index="linux-alert" src_ip="10.10.242.248" source="auth.log" Failed 
 
 R= 500
