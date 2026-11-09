@@ -26,6 +26,7 @@ R= 500
 
 ## Segunda pregunta:
 La segunga pregunta nos pide el tiempo que duró el ataque, se responde de manera muy simple, ya que con el filtro de los intentos puesto, en las graficas podemos observar solo 5 líneas y cada línea nos dice que es un minuto. OPCIONAL: también podrías escribir la siguiente busqueda para llegar a la misma respuesta. 
+![fig2](https://github.com/hinous/Cybersecurity-Hub/blob/main/Assets/numero%20de%20eventos.png)
 
 ```slp
 index="linux-alert" src_ip="10.10.242.248" "Failed password"
@@ -35,12 +36,12 @@ stats min(_time) as start max(_time) as end
 R= 5 mins
 
 ## La tercera pregunta: 
-Nos solicita saber a que usuario escaló privilegios "john.smith"    Es muy simple contestar esto, ya que solo buscando el index correcto en la barra lateral de busqueda encontramos la opcion de actions, dentro   
-de la cual tenemos "success". Le damos click y ahí tenemos los comandos clarosla respuesta de la escalada de privilegios a root.
-
+Nos solicita saber a que usuario escaló privilegios "john.smith"    Es muy simple contestar esto, ya que solo buscando el index correcto en la barra lateral de busqueda encontramos la opcion de actions, dentro de la cual tenemos "success". Le damos click y ahí tenemos los comandos clarosla respuesta de la escalada de privilegios a root.
+![fig3](https://github.com/hinous/Cybersecurity-Hub/blob/main/Assets/root.png)
+![fig4](https://github.com/hinous/Cybersecurity-Hub/blob/main/Assets/accionessp.png)
 R= Root
 
 ## La cuarta...
 y ultima de esta tarea nos pide  a que nombre de usuario se cambió para persistir. Podriamos buscar directamente el comando adduser o en la barra lateral>actions podemos encontrar la accion con concepto "create". ahí encontramos la respuesta.
-
+![fig5](https://github.com/hinous/Cybersecurity-Hub/blob/main/Assets/created-john.png)
 R= system-utm
