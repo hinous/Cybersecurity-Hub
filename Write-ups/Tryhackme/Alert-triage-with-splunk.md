@@ -1,16 +1,16 @@
-En el primer ejercicio nos avisan de un probable ataque de fuerza bruta y nos regalan estos datos:
+### En el primer ejercicio nos avisan de un probable ataque de fuerza bruta y nos regalan estos datos:
 
-    You’ve just started your first shift as a SOC analyst at an MSSP. Only a few minutes have passed since an alert about a possible brute force.
+   ### You’ve just started your first shift as a SOC analyst at an MSSP. Only a few minutes have passed since an alert about a possible brute force.
     attack appeared on the platform.
     
-```spl
-    Alert Details:
+
+   ### Alert Details:
     Alert Name: Brute Force Activity Detection
     Time: 17/09/2025 9:00:21 AM
     Target Host: tryhackme-2404
     Source IP: 10.10.242.248
     Your job is to investigate this activity and decide whether it should be considered suspicious.
-    ```
+
 
 
 
