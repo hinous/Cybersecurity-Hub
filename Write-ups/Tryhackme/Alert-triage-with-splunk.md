@@ -2,6 +2,7 @@ En el primer ejercicio nos avisan de un probable ataque de fuerza bruta y nos re
 
     You’ve just started your first shift as a SOC analyst at an MSSP. Only a few minutes have passed since an alert about a possible brute force.
     attack appeared on the platform.
+    
 ```spl
     Alert Details:
     Alert Name: Brute Force Activity Detection
