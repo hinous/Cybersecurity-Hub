@@ -5,7 +5,7 @@ attack appeared on the platform.
     
 
 ### Alert Details:
-    ```bash
+```slp    
     Alert Name: Brute Force Activity Detection
     Time: 17/09/2025 9:00:21 AM
     Target Host: tryhackme-2404
