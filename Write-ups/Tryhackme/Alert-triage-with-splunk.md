@@ -67,7 +67,7 @@ La segunda pregunta nos solicita el nombre del proceso padre, en la captura ante
 R= cmd.exe
 
 ## 3.
-La tercera pregunta es cual grupo local se enumeró por el atacante: Yo busqué la palabra clave group, me dio esto:
+La tercera pregunta es cual grupo local se enumeró por el atacante: Yo busqué el EventId de sysmon >4732,  me dio esto:
 ![incluso tiene un mensaje donde dice que fue enumerado.](https://github.com/hinous/Cybersecurity-Hub/blob/main/Assets/enumeratedgroup-task3.png)
 R= Administrators
 
