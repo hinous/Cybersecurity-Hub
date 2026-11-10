@@ -1,4 +1,5 @@
-# En el primer ejercicio nos avisan de un probable ataque de fuerza bruta y nos regalan estos datos:
+# Task 2
+En el primer ejercicio nos avisan de un probable ataque de fuerza bruta y nos regalan estos datos:
 
 You’ve just started your first shift as a SOC analyst at an MSSP. Only a few minutes have passed since an alert about a possible brute force.
 attack appeared on the platform.
@@ -45,3 +46,32 @@ R= Root
 y ultima de esta tarea nos pide  a que nombre de usuario se cambió para persistir. Podriamos buscar directamente el comando adduser o en la barra lateral>actions podemos encontrar la accion con concepto "create". ahí encontramos la respuesta.
 ![fig5](https://github.com/hinous/Cybersecurity-Hub/blob/main/Assets/created-john.png)
 R= system-utm
+
+
+
+# Task 3
+El task 3 se trata de un proceso malicioso que está corriendo en schedule o cronometrado para persistir. Después de leer el texto confirmamos que es un verdadero positivo y estamos listos para contestar las preguntas
+
+## 1.
+La primera pregunta nos pide el process id del proceso malicioso. Este se contesta con el mismo comando que nos regala thm en el ejercicio, es: 
+```slp
+index="win-alert" EventCode=4698 AssessmentTaskOne
+| table _time EventCode user_name host Task_Name Message
+```
+![si leemos los parametros que nos arroja splunk](https://github.com/hinous/Cybersecurity-Hub/blob/main/Assets/PPID-task3.png)
+R= ClientProcessId: 5816
+
+## 2.
+La segunda pregunta nos solicita el nombre del proceso padre, en la captura anterior tenemos el Id del proceso padre que es 4128, lo ponemos en la barra de busqueda y nos da el nombre del proceso que es: 
+![Busca 4128](https://github.com/hinous/Cybersecurity-Hub/blob/main/Assets/processname-task3.png)
+R= cmd.exe
+
+## 3.
+La tercera pregunta es cual grupo local se enumeró por el atacante: Yo busqué la palabra clave group, me dio esto:
+![incluso tiene un mensaje donde dice que fue enumerado.](https://github.com/hinous/Cybersecurity-Hub/blob/main/Assets/enumeratedgroup-task3.png)
+R= Administrators
+
+## 4.
+La ultima pregunta nos pide el nombre de la workstation que usó el atacante para loggearse a este host, Usando los Event ID de sysmon 4624-4625 podemos mirar los intentos de login fallidos y exitosos, abrimos uno y en los detalles encontramos el nombre de la workstation. 
+![EventID 4624-25](https://github.com/hinous/Cybersecurity-Hub/blob/main/Assets/Workstation-task3.png)
+R= DEV-QA-SERVER
