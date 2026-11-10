@@ -19,10 +19,12 @@ attack appeared on the platform.
 
 
 ## Para contestar la primera pregunta usamos la línea: 
-![fig1](https://github.com/hinous/Cybersecurity-Hub/blob/main/Assets/numero%20de%20eventos.png)
+
 
     index="linux-alert" src_ip="10.10.242.248" source="auth.log" Failed 
+Nos muestra el total de intentos, despues solo debemos de filtrar los fallidos. 
 
+![fig1](https://github.com/hinous/Cybersecurity-Hub/blob/main/Assets/numero%20de%20eventos.png)
 R= 500
 
 ## Segunda pregunta:
