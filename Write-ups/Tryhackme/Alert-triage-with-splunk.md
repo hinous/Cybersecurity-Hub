@@ -1,4 +1,7 @@
-# Task 2
+# Alert Triage With Splunk write-up
+
+
+## Task 2
 En el primer ejercicio nos avisan de un probable ataque de fuerza bruta y nos regalan estos datos:
 
 You’ve just started your first shift as a SOC analyst at an MSSP. Only a few minutes have passed since an alert about a possible brute force.
