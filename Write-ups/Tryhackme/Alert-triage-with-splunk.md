@@ -77,3 +77,25 @@ R= Administrators
 La ultima pregunta nos pide el nombre de la workstation que usó el atacante para loggearse a este host, Usando los Event ID de sysmon 4624-4625 podemos mirar los intentos de login fallidos y exitosos, abrimos uno y en los detalles encontramos el nombre de la workstation. 
 ![EventID 4624-25](https://github.com/hinous/Cybersecurity-Hub/blob/main/Assets/Workstation-task3.png)
 R= DEV-QA-SERVER
+
+
+# Task 4
+
+En este task nos ponen un ejemplo de una webshell que se ejecuta por medio de hydra. 
+## 1. 
+Despues de leer el task nos vamos a la primera pregunta donde nos piden la hora a la que inició el ataque con hydra, para esto dejamos el primer query que viene en la tarea y sorteamos la columna de tiempo para fijarnos exactamente donde comenzó:
+```slp
+index=web-alert 171.251.232.40
+| table _time clientip useragent uri_path method status 
+| sort + _time
+```
+![fecha](https://github.com/hinous/Cybersecurity-Hub/blob/main/Assets/hora-task4.png)
+R= 2025-09-14 21:20:27
+## 2. 
+Literalmente la segunda pregunta está visible dentro del mismo task, así que solo queda copiar y pegar el user agent de la parte en donde se ve como el atacante está corriendo comandos a través del shell.
+![userAgent](https://github.com/hinous/Cybersecurity-Hub/blob/main/Assets/useragent-task4.png)
+R= Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36
+## 3. 
+La tercera pregunta es cuantas interacciones tiene el atacante a través de la web shell, también se encuentra visible en la misma captura de pantalla de la task, el primer renglón es donde se establece la conexion exitosa, así que podemos contar los logs a simple vista. 
+![wireshark podrá ver los comandos que se ejecutaron en estas peticiones?](https://github.com/hinous/Cybersecurity-Hub/blob/main/Assets/numeropeticiones-task4.png)
+R= 4
