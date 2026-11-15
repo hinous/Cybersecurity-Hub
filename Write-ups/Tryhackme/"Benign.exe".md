@@ -1,4 +1,4 @@
-# Tryhackme, Benign Writeup
+# Benign Writeup: THM
 
 Este es un ejercicio bastante facil, donde nos dan la attackbox y nos dan un vinculo de Splunk con los logs ya cargados para investigar un equipo comprometido. El index es event_winlogs.
 
@@ -19,7 +19,7 @@ Para encontrarlo, solo agregué a la barra de busquedas los nombres de usuario d
 ```slp
 username= IN (chris.ford, Diana, Haroon) schtask
 ```
-!["/temp/update.exe /sc onstart"](schtasks.png)
+!["/temp/update.exe /sc onstart"](https://github.com/hinous/Cybersecurity-Hub/blob/main/Assets/schtasks.png)
 Correct Answer Chris.ford
 
 ### 4.
